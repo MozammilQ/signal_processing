@@ -7,8 +7,9 @@
 
 #### Sine tones of these list of frequencies
 
-freq_list=[5, 10, 20, 40, 13, 33];
+freq_list=[5, 10, 20, 40, 25, 35];
 amp_list=[1.0, 1.0, 1.0, 1.0, 1.0, 1.0];
+center_freq=0;
 
 ###########################################################################################################
 
@@ -21,19 +22,16 @@ len_freq_list=length(freq_list)
 samp_rate=maximum(freq_list)*2;
 dt=1/samp_rate;
 t=range(0,2*pi,step=dt);
-y_t = zeros(length(t));
+sig_f = zeros(length(t));
 
 for i=1:len_freq_list
-        global y_t = y_t + (amp_list[i] .* sin.( (2*pi) * freq_list[i] * t ));
+        global sig_f = sig_f + (amp_list[i] .* sin.( (2*pi) * freq_list[i] * t ));
 end
 
-
-
 n=length(t);
-f_hat_t = fft(y_t);
-PSD_t= ( f_hat_t .* conj.(f_hat_t) ) ./ n;
-freq_rec_t= range(0,n-1,step=1) .* ( 1 / (dt * n) ) ;
-#freq_rec_t_half=freq_rec_t[1:Int(floor(n/2))];
-#PSD_t_half=PSD_t[1:Int(floor(n/2))];
-linesegments!(scene,freq_rec_t,PSD_t)
+f_hat = fft(sig_f);
+PSD_f= ( f_hat .* conj.(f_hat) ) ./ n;
+freq_rec = range(0,n-1,step=1) .* ( 1 / (dt * n) ) ;
+freq_rec = freq_rec .- (samp_rate/2) .+ center_freq ;
+linesegments!(scene,freq_rec,PSD_f)
 
