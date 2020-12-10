@@ -1,37 +1,49 @@
-#!/usr/bin/julia
 
-####################################   This a demo PSD Plotter   ###########################################
+samp_rate = 6000000;num_of_seconds=0.1;center_freq=91900000;file_name="simple_fm";
+decimation_ratio=8;M=100;points_to_ignore=10000;
 
-########################################       Tuning       ################################################
-
-
-#### Sine tones of these list of frequencies
-
-freq_list=[5, 10, 20, 40, 25, 35];
-amp_list=[1.0, 1.0, 1.0, 1.0, 1.0, 1.0];
-center_freq=0;
-
-###########################################################################################################
-
-
-if length(freq_list) != length(amp_list)
-        @info "Amplitude of any frequency is missing"
+using Makie,FFTW
+num_of_samples=Int(samp_rate * num_of_seconds);
+raw_iq_buffer=Array{Float32}(undef,1,2*num_of_samples);
+read!(file_name,raw_iq_buffer);
+I_=Array{Float32}(undef,1,num_of_samples);
+Q_=Array{Float32}(undef,1,num_of_samples);
+I_=raw_iq_buffer[1:2:end];
+Q_=raw_iq_buffer[2:2:end];
+IQ_complex=Array{Complex{Float32}}(undef,1,num_of_samples);
+for i=1:num_of_samples
+        IQ_complex[i]=I_[i] + Q_[i]im
 end
-scene=Scene();
-len_freq_list=length(freq_list)
-samp_rate=maximum(freq_list)*2;
-dt=1/samp_rate;
-t=range(0,2*pi,step=dt);
-sig_f = zeros(length(t));
-
-for i=1:len_freq_list
-        global sig_f = sig_f + (amp_list[i] .* sin.( (2*pi) * freq_list[i] * t ));
+len_IQ_complex=length(IQ_complex);
+fft_IQ_complex = fft(IQ_complex);
+PSD_IQ_complex = abs2.(fft_IQ_complex) ./ len_IQ_complex;
+freq_rec = range(0,len_IQ_complex-1,step=1) .* (samp_rate / len_IQ_complex);
+freq_rec = freq_rec .- (samp_rate/2) .+ center_freq .+ 1;
+PSD_IQ_complex=PSD_IQ_complex[points_to_ignore:1:length(PSD_IQ_complex)-points_to_ignore];
+freq_rec=freq_rec[points_to_ignore:1:length(freq_rec)-points_to_ignore];
+freq_rec=freq_rec[1:decimation_ratio:end];
+PSD_IQ_complex=PSD_IQ_complex[1:decimation_ratio:end];
+new_psd_len=length(PSD_IQ_complex)-M+1;
+new_psd=Array{Float32}(undef,1,new_psd_len);
+_counter=one(UInt64);
+for n_=1:new_psd_len
+        for k_=n_:n_+M-1
+                new_psd[_counter]+=PSD_IQ_complex[k_]
+        end
+        global _counter+=1;
 end
+new_psd=vec(new_psd);
+new_freq_rec=vec(freq_rec[1:1:length(new_psd)]);
 
-n=length(t);
-f_hat = fft(sig_f);
-PSD_f= ( f_hat .* conj.(f_hat) ) ./ n;
-freq_rec = range(0,n-1,step=1) .* ( 1 / (dt * n) ) ;
-freq_rec = freq_rec .- (samp_rate/2) .+ center_freq ;
-linesegments!(scene,freq_rec,PSD_f)
+
+scene=Scene(resolution=(1200,600))
+lines!(scene,new_freq_rec,new_psd,color=:blue,linewidth=0.5)
+axis = scene[Axis]
+axis.grid.linecolor = ((:black, 0.5), (:black, 0.5))
+axis.names.textcolor = ((:black, 1.0), (:black, 1.0))
+axis.names.axisnames = ("frequency", "Power(dB)")
+axis.names.textsize = (3,3)
+axis.frame.arrow_size = (1,1)
+axis.frame.axis_arrow=true
+
 
