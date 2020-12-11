@@ -1,49 +1,74 @@
 
 samp_rate = 6000000;num_of_seconds=0.1;center_freq=91900000;file_name="simple_fm";
-decimation_ratio=8;M=100;points_to_ignore=10000;
+decimation_ratio=8;M=100;points_to_ignore=10000;num_of_ticks=50;
 
 using Makie,FFTW
-num_of_samples=Int(samp_rate * num_of_seconds);
-raw_iq_buffer=Array{Float32}(undef,1,2*num_of_samples);
-read!(file_name,raw_iq_buffer);
-I_=Array{Float32}(undef,1,num_of_samples);
-Q_=Array{Float32}(undef,1,num_of_samples);
-I_=raw_iq_buffer[1:2:end];
-Q_=raw_iq_buffer[2:2:end];
-IQ_complex=Array{Complex{Float32}}(undef,1,num_of_samples);
+num_of_samples=Int(samp_rate * num_of_seconds)
+raw_iq_buffer=Array{Float32}(undef,1,2*num_of_samples)
+read!(file_name,raw_iq_buffer)
+I_=Array{Float32}(undef,1,num_of_samples)
+Q_=Array{Float32}(undef,1,num_of_samples)
+I_=raw_iq_buffer[1:2:end]
+Q_=raw_iq_buffer[2:2:end]
+IQ_complex=Array{Complex{Float32}}(undef,1,num_of_samples)
 for i=1:num_of_samples
-        IQ_complex[i]=I_[i] + Q_[i]im
+	IQ_complex[i]=I_[i] + Q_[i]im
 end
-len_IQ_complex=length(IQ_complex);
-fft_IQ_complex = fft(IQ_complex);
-PSD_IQ_complex = abs2.(fft_IQ_complex) ./ len_IQ_complex;
-freq_rec = range(0,len_IQ_complex-1,step=1) .* (samp_rate / len_IQ_complex);
-freq_rec = freq_rec .- (samp_rate/2) .+ center_freq .+ 1;
-PSD_IQ_complex=PSD_IQ_complex[points_to_ignore:1:length(PSD_IQ_complex)-points_to_ignore];
-freq_rec=freq_rec[points_to_ignore:1:length(freq_rec)-points_to_ignore];
-freq_rec=freq_rec[1:decimation_ratio:end];
-PSD_IQ_complex=PSD_IQ_complex[1:decimation_ratio:end];
-new_psd_len=length(PSD_IQ_complex)-M+1;
-new_psd=Array{Float32}(undef,1,new_psd_len);
-_counter=one(UInt64);
+len_IQ_complex=length(IQ_complex)
+fft_IQ_complex = fft(IQ_complex)
+PSD_IQ_complex = abs2.(fft_IQ_complex) ./ len_IQ_complex
+freq_rec = range(0,len_IQ_complex-1,step=1) .* (samp_rate / len_IQ_complex)
+freq_rec = freq_rec .- (samp_rate/2) .+ center_freq .+ 1
+PSD_IQ_complex=PSD_IQ_complex[points_to_ignore:1:length(PSD_IQ_complex)-points_to_ignore]
+freq_rec=freq_rec[points_to_ignore:1:length(freq_rec)-points_to_ignore]
+freq_rec=freq_rec[1:decimation_ratio:end]
+PSD_IQ_complex=PSD_IQ_complex[1:decimation_ratio:end]
+new_psd_len=length(PSD_IQ_complex)-M+1
+new_psd=Array{Float32}(undef,1,new_psd_len)
+_counter=one(UInt64)
 for n_=1:new_psd_len
-        for k_=n_:n_+M-1
-                new_psd[_counter]+=PSD_IQ_complex[k_]
-        end
-        global _counter+=1;
+	for k_=n_:n_+M-1
+		new_psd[_counter]+=PSD_IQ_complex[k_]
+	end
+	global _counter+=1
 end
-new_psd=vec(new_psd);
-new_freq_rec=vec(freq_rec[1:1:length(new_psd)]);
+new_psd=vec(new_psd)
+new_freq_rec=vec(freq_rec[1:1:length(new_psd)])
 
+for i=1:length(new_psd)
+	if isnan(new_psd[i])
+		new_psd[i]=0
+	end
+end
 
-scene=Scene(resolution=(1200,600))
-lines!(scene,new_freq_rec,new_psd,color=:blue,linewidth=0.5)
+scene=lines(new_freq_rec,new_psd,color=:blue,linewidth=0.5,resolution=(1200,600))
+tickrange_x=range(minimum(new_freq_rec),maximum(new_freq_rec),length=num_of_ticks)
+tickrange_y=range(minimum(new_psd),maximum(new_psd),length=num_of_ticks)
+
+ticklabels_x=Array{String}(undef,1,num_of_ticks)
+ticklabels_y=Array{String}(undef,1,num_of_ticks)
+
+if tickrange_x[1] >= 1E+06
+	x_label="frequency(MHz)"
+end
+y_label="Power(dB)"
+
+for i=1:num_of_ticks
+	ticklabels_x[i]=string(round((tickrange_x[i]/1E+06), digits=1))
+	ticklabels_y[i]=string(round(tickrange_y[i],digits=2))
+end
+
+ticklabels_x=vec(ticklabels_x)
+ticklabels_y=vec(ticklabels_y)
+
+AbstractPlotting.ticks!(scene,tickranges=(tickrange_x,tickrange_y))
+AbstractPlotting.ticks!(scene,ticklabels=(ticklabels_x,ticklabels_y))
+
 axis = scene[Axis]
 axis.grid.linecolor = ((:black, 0.5), (:black, 0.5))
 axis.names.textcolor = ((:black, 1.0), (:black, 1.0))
-axis.names.axisnames = ("frequency", "Power(dB)")
-axis.names.textsize = (3,3)
-axis.frame.arrow_size = (1,1)
-axis.frame.axis_arrow=true
+axis.names.axisnames = (x_label,y_label)
+axis.names.textsize = (2.5,2.5)
+axis.ticks.textsize=(1.5,1.5)
 
 
