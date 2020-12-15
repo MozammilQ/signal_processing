@@ -1,11 +1,194 @@
-M=3
-arr=[1,2,3,4,5,6,7,8,9]
-arr_mv=Array{Int16}(undef,1,length(arr)-M+1)
-arr_mv.=0
-for i=1:1:length(arr_mv)
-    for j=i:i+M-1
-            arr_mv[i]+=arr[j]
-        end
+using FFTW
+
+file_name="simple_fm_91.9MHz"
+samp_rate=6000000
+center_freq=91900000
+frame_rate=30
+
+time_begin=0.0f0
+time_end=0.0f0
+time_to_sleep=0.0f0
+decimation_ratio=16
+M=5
+num_of_ticks=50
+num_of_samples=Int(samp_rate * (1/frame_rate))
+raw_iq_buffer=Array{Float32}(undef,1,2*num_of_samples)
+I_=Array{Float32}(undef,1,num_of_samples)
+Q_=Array{Float32}(undef,1,num_of_samples)
+IQ_complex=Array{Complex{Float32}}(undef,1,num_of_samples)
+tickrange_x=Array{Float32}(undef,1,num_of_ticks)
+tickrange_y=Array{Float32}(undef,1,num_of_ticks)
+ticklabels_x=Array{String}(undef,1,num_of_ticks)
+ticklabels_x.=""
+ticklabels_y=Array{String}(undef,1,num_of_ticks)
+ticklabels_y.=""
+x_label=""
+file_handle=open(file_name,"r")
+
+raw_iq_buffer.=0.0f0
+I_.=0.0f0
+Q_.=0.0f0
+IQ_complex.=0.0f0
+
+freq_rec = range(0,num_of_samples-1,step=1) .* (samp_rate / num_of_samples)
+freq_rec = freq_rec .- (samp_rate/2) .+ center_freq
+freq_rec=freq_rec[1:decimation_ratio:end]
+freq_rec=vec(freq_rec)
+
+avrg_psd_len=length(freq_rec)
+avrg_psd=Array{Float32}(undef,1,avrg_psd_len)
+avrg_psd.=0.0f0
+avrg_psd=vec(avrg_psd)
+
+read!(file_handle,raw_iq_buffer)
+
+I_=raw_iq_buffer[1:2:end]
+Q_=raw_iq_buffer[2:2:end]
+
+for i=1:num_of_samples
+	IQ_complex[i]=I_[i] + Q_[i]im
 end
-arr
-arr_mv
+
+
+#IQ_complex=IQ_complex[1:decimation_ratio:end]
+
+
+fft_IQ_complex = fft(IQ_complex)
+PSD_IQ_complex = abs2.(fft_IQ_complex) ./ num_of_samples
+
+
+#for i=1:len_psd_iq_complex
+#	if isnan(PSD_IQ_complex[i])
+#		PSD_IQ_complex[i]=0
+#	end
+#end
+
+
+PSD_IQ_complex=PSD_IQ_complex[1:decimation_ratio:end]
+len_psd_iq_complex=length(PSD_IQ_complex)
+
+PSD_IQ_complex[1:1:Int(len_psd_iq_complex/2)] = PSD_IQ_complex[Int(len_psd_iq_complex/2):-1:1]
+PSD_IQ_complex[Int(len_psd_iq_complex/2)+1:1:end]=PSD_IQ_complex[end:-1:Int(len_psd_iq_complex/2)+1]
+
+
+for i=1:1:avrg_psd_len-M+1
+	for j=i:1:i+M-1
+		avrg_psd[i]+=PSD_IQ_complex[j]
+	end
+end
+
+db_psd=Array{Float32}(undef,1,avrg_psd_len-M+1)
+db_psd.=0.0f0
+db_psd=vec(db_psd)
+
+avrg_psd=avrg_psd .+ 1.0f0
+
+for i in 1:1:avrg_psd_len-M+1
+	db_psd[i]=10 * log10(avrg_psd[i])
+end
+
+append!(db_psd,[0.0f0 for i in 1:1:Int((M-1)/2)])
+prepend!(db_psd,[0.0f0 for i in 1:1:Int((M-1)/2)])
+
+tickrange_x=range(minimum(freq_rec),maximum(freq_rec),length=num_of_ticks)
+for i=1:num_of_ticks
+	global ticklabels_x[i]=string(round((tickrange_x[i]/1E+06), digits=1))
+end
+if tickrange_x[1] >= 1E+06
+	global x_label="frequency(MHz)"
+end
+ticklabels_x=vec(ticklabels_x)
+
+tickrange_y=range(minimum(db_psd),maximum(db_psd),length=num_of_ticks)
+global y_label="Relative Power(dB)"
+for i=1:num_of_ticks
+	ticklabels_y[i]=string(round(tickrange_y[i],digits=2))
+end
+ticklabels_y=vec(ticklabels_y)
+
+using Makie
+scene=Scene(resolution=(1200,600))
+lines!(scene,freq_rec,db_psd,color=:blue,linewidth=0.5)
+lineplot=scene[end]
+axis = scene[Axis]
+axis.grid.linecolor = ((:black, 0.5), (:black, 0.5))
+axis.names.textcolor = ((:black, 1.0), (:black, 1.0))
+axis.names.axisnames = (x_label,y_label)
+axis.names.textsize = (2.5,2.5)
+axis.ticks.textsize=(1.5,1.5)
+AbstractPlotting.ticks!(scene,tickranges=(tickrange_x,tickrange_y))
+AbstractPlotting.ticks!(scene,ticklabels=(ticklabels_x,ticklabels_y))
+avrg_psd.=0.0f0
+db_psd=db_psd[1:1:avrg_psd_len-M+1]
+display(scene)
+
+
+for i=1:1:20
+	global time_begin=time()
+	read!(file_handle,raw_iq_buffer)
+	
+	global I_=raw_iq_buffer[1:2:end]
+	global Q_=raw_iq_buffer[2:2:end]
+	
+	for i=1:num_of_samples
+		IQ_complex[i]=I_[i] + Q_[i]im
+	end
+	
+	#IQ_complex=IQ_complex[1:decimation_ratio:end]
+
+	global fft_IQ_complex = fft(IQ_complex)
+	global PSD_IQ_complex = abs2.(fft_IQ_complex) ./ num_of_samples
+	
+	#for i=1:len_psd_iq_complex
+	#	if isnan(PSD_IQ_complex[i])
+	#		PSD_IQ_complex[i]=0
+	#	end
+	#end
+	
+	PSD_IQ_complex=PSD_IQ_complex[1:decimation_ratio:end]
+
+	PSD_IQ_complex[1:1:Int(len_psd_iq_complex/2)] = PSD_IQ_complex[Int(len_psd_iq_complex/2):-1:1]
+	PSD_IQ_complex[Int(len_psd_iq_complex/2)+1:1:end]=PSD_IQ_complex[end:-1:Int(len_psd_iq_complex/2)+1]
+	
+	
+	for i=1:1:avrg_psd_len-M+1
+		for j=i:1:i+M-1
+			avrg_psd[i]+=PSD_IQ_complex[j]
+		end
+	end
+
+	avrg_psd=avrg_psd .+ 1.0f0
+
+	for i in 1:1:avrg_psd_len-M+1
+		db_psd[i]=10 * log10(avrg_psd[i])
+	end
+	
+	avrg_psd.=0.0f0
+	append!(db_psd,[0.0f0 for i in 1:1:Int((M-1)/2)])
+	prepend!(db_psd,[0.0f0 for i in 1:1:Int((M-1)/2)])
+	
+	global tickrange_y=range(minimum(db_psd),maximum(db_psd),length=num_of_ticks)
+	for i=1:num_of_ticks
+		ticklabels_y[i]=string(round(tickrange_y[i],digits=2))
+	end
+	ticklabels_y=vec(ticklabels_y)
+
+	AbstractPlotting.ticks!(scene,tickranges=(tickrange_x,tickrange_y))
+	AbstractPlotting.ticks!(scene,ticklabels=(ticklabels_x,ticklabels_y))
+	lineplot[2]=db_psd
+	db_psd=db_psd[1:avrg_psd_len-M+1]
+	AbstractPlotting.update_limits!(scene)
+	AbstractPlotting.update!(scene)
+	global time_end=time()
+	global time_to_sleep=((1/frame_rate)-(time_end-time_begin))
+	if time_to_sleep <= 0
+		@info "Compute resources are not adequate!"
+		time_to_sleep=0.05
+	end
+	sleep(time_to_sleep)
+end
+
+close(file_handle)
+
+
+
