@@ -37,7 +37,7 @@ freq_rec=vec(freq_rec)
 
 avrg_psd_len=length(freq_rec)
 avrg_psd=Array{Float32}(undef,1,avrg_psd_len)
-avrg_psd.=0.0f0
+avrg_psd.=1.0f0
 avrg_psd=vec(avrg_psd)
 
 read!(file_handle,raw_iq_buffer)
@@ -49,27 +49,14 @@ for i=1:num_of_samples
 	IQ_complex[i]=I_[i] + Q_[i]im
 end
 
-
-#IQ_complex=IQ_complex[1:decimation_ratio:end]
-
-
 fft_IQ_complex = fft(IQ_complex)
 PSD_IQ_complex = abs2.(fft_IQ_complex) ./ num_of_samples
-
-
-#for i=1:len_psd_iq_complex
-#	if isnan(PSD_IQ_complex[i])
-#		PSD_IQ_complex[i]=0
-#	end
-#end
-
 
 PSD_IQ_complex=PSD_IQ_complex[1:decimation_ratio:end]
 len_psd_iq_complex=length(PSD_IQ_complex)
 
 PSD_IQ_complex[1:1:Int(len_psd_iq_complex/2)] = PSD_IQ_complex[Int(len_psd_iq_complex/2):-1:1]
 PSD_IQ_complex[Int(len_psd_iq_complex/2)+1:1:end]=PSD_IQ_complex[end:-1:Int(len_psd_iq_complex/2)+1]
-
 
 for i=1:1:avrg_psd_len-M+1
 	for j=i:1:i+M-1
@@ -80,8 +67,6 @@ end
 db_psd=Array{Float32}(undef,1,avrg_psd_len-M+1)
 db_psd.=0.0f0
 db_psd=vec(db_psd)
-
-avrg_psd=avrg_psd .+ 1.0f0
 
 for i in 1:1:avrg_psd_len-M+1
 	db_psd[i]=10 * log10(avrg_psd[i])
@@ -118,10 +103,8 @@ axis.names.textsize = (2.5,2.5)
 axis.ticks.textsize=(1.5,1.5)
 AbstractPlotting.ticks!(scene,tickranges=(tickrange_x,tickrange_y))
 AbstractPlotting.ticks!(scene,ticklabels=(ticklabels_x,ticklabels_y))
-avrg_psd.=0.0f0
 db_psd=db_psd[1:1:avrg_psd_len-M+1]
 display(scene)
-
 
 for i=1:1:20
 	global time_begin=time()
@@ -134,16 +117,8 @@ for i=1:1:20
 		IQ_complex[i]=I_[i] + Q_[i]im
 	end
 	
-	#IQ_complex=IQ_complex[1:decimation_ratio:end]
-
 	global fft_IQ_complex = fft(IQ_complex)
 	global PSD_IQ_complex = abs2.(fft_IQ_complex) ./ num_of_samples
-	
-	#for i=1:len_psd_iq_complex
-	#	if isnan(PSD_IQ_complex[i])
-	#		PSD_IQ_complex[i]=0
-	#	end
-	#end
 	
 	PSD_IQ_complex=PSD_IQ_complex[1:decimation_ratio:end]
 
@@ -152,18 +127,16 @@ for i=1:1:20
 	
 	
 	for i=1:1:avrg_psd_len-M+1
+		avrg_psd[i]=1.0f0
 		for j=i:1:i+M-1
 			avrg_psd[i]+=PSD_IQ_complex[j]
 		end
 	end
 
-	avrg_psd=avrg_psd .+ 1.0f0
-
 	for i in 1:1:avrg_psd_len-M+1
 		db_psd[i]=10 * log10(avrg_psd[i])
 	end
 	
-	avrg_psd.=0.0f0
 	append!(db_psd,[0.0f0 for i in 1:1:Int((M-1)/2)])
 	prepend!(db_psd,[0.0f0 for i in 1:1:Int((M-1)/2)])
 	
