@@ -1,0 +1,117 @@
+
+using Distributed
+addprocs(3)
+
+@everywhere procs() using SharedArrays
+M=3
+function mov_avg_serial(arr::Array{Float64,1},M::Int)
+	@info "Local serial Array{Float64,1} invoked"
+	new_arr=Array{Float64,1}(undef,length(arr)-M+1)
+	for i in 1:1:length(new_arr)
+		for j in i:1:i+M-1
+			new_arr[i]+=arr[j]
+		end
+	end
+	return new_arr
+end
+
+function mov_avg_serial(arr::SharedArray{Float64,1},M::Int)
+	@info "Local serial SharedArray{Float64,1} invoked"
+	new_arr=Array{Float64,1}(undef,length(arr)-M+1)
+	for i in 1:1:length(new_arr)
+		for j in i:1:i+M-1
+			new_arr[i]+=arr[j]
+		end
+	end
+	return new_arr
+end
+
+@everywhere workers() begin
+
+	M=$M
+
+	function mov_avg_parallel(M::Int,start_::Int,end_::Int)
+		@info "SharedArray{Float64,1} invoked at worker " * string(myid())
+	        new_arr=Array{Float64,1}(undef,end_-start_-M+1)
+	        for i in 1:1:end_-start_-M+1
+	                for j in i:1:i+M-1
+	                        new_arr[i]+=arr[start_+j-1]
+	                end
+	        end
+	        return new_arr
+	end
+
+	function mov_avg_parallel(M::Int,start_::Int,end_::Int)
+		@info "Array{Float64,1} invoked at worker " * string(myid())
+	        new_arr=Array{Float64,1}(undef,end_-start_-M+1)
+	        for i in 1:1:end_-start_-M+1
+	                for j in i:1:i+M-1
+	                        new_arr[i]+=arr[start_+j-1]
+	                end
+	        end
+	        return new_arr
+	end
+
+end
+
+function mov_avg_paralle(arr::Array{Float64},M::Int)
+	@info "Local mov_avg_paralle Array invoked"
+	marker=round(Int,length(arr)/nworkers())
+	
+	wrkrs=workers()
+	result_=Float64[]
+
+	for i in wrkrs
+	
+		start_= round(Int, marker * ( i - wrkrs[1] )) + 1
+		end_=start_+marker+M-2
+	
+	
+		if i==wrkrs[end]
+			append!(result_,@fetchfrom i mov_avg_parallel(arr,M,start_,length(arr)))
+		else
+			append!(result_,@fetchfrom i mov_avg_parallel(arr,M,start_,end_))
+		end
+	
+	end
+	return result_
+end
+
+function mov_avg_paralle(arr::SharedArray{Float64},M::Int)
+	@info "Local mov_avg_parralle SharedArray invoked"
+	marker=round(Int,length(arr)/nworkers())
+	
+	wrkrs=workers()
+	result_=Float64[]
+
+	for i in wrkrs
+	
+		start_= round(Int, marker * ( i - wrkrs[1] )) + 1
+		end_=start_+marker+M-2
+	
+	
+		if i==wrkrs[end]
+			append!(result_,@fetchfrom i mov_avg_parallel(M,start_,length(arr)))
+		else
+			append!(result_,@fetchfrom i mov_avg_parallel(M,start_,end_))
+		end
+	
+	end
+	return result_
+end
+
+
+##########################################################################################################
+
+ele=5_000_000;
+using SharedArrays
+arr=SharedArray{Float64,1}(ele);
+#arr=rand(1:90000000.0,ele);
+
+using BenchmarkTools
+
+
+@btime mov_avg_serial(arr,M);
+@btime mov_avg_paralle(arr,M);
+
+

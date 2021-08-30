@@ -1,0 +1,8 @@
+name = "psd_plot"
+uuid = "fcc95ed7-cb1e-46aa-806d-67f081d73fd3"
+authors = ["red "]
+version = "0.1.0"
+
+[deps]
+FFTW = "7a1cc6ca-52ef-59f5-83cd-3a7055c09341"
+Makie = "ee78f7c6-11fb-53f2-987a-cfe4a2b5a57a"

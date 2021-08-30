@@ -1,0 +1,62 @@
+
+psd_plot.draw_psd(source,file_name,samp_rate,center_freq)
+
+#############################     data generation   #################################
+
+
+#psd_plot.draw_psd("simple_fm_91.9MHz",6000000,91900000)
+
+file_name="simple_fm_91"
+raw_iq_buffer=Array{Float32}(undef,1,2*num_of_samples)
+I_=Array{Float32}(undef,1,num_of_samples)
+Q_=Array{Float32}(undef,1,num_of_samples)
+IQ_complex=Array{Complex{Float32}}(undef,1,num_of_samples)
+
+
+#raw_iq_buffer.=0.0f0
+#I_.=0.0f0
+#Q_.=0.0f0
+#IQ_complex.=0.0f0
+
+
+file_handle=open(file_name,"r")
+		
+read!(file_handle,raw_iq_buffer)
+
+I_=raw_iq_buffer[1:2:end]
+Q_=raw_iq_buffer[2:2:end]
+
+for i=1:num_of_samples
+	IQ_complex[i]=I_[i] + Q_[i]im
+end
+
+for i in 1:1:30
+	read!(file_handle,raw_iq_buffer)
+	global I_=raw_iq_buffer[1:2:end]
+    global Q_=raw_iq_buffer[2:2:end]
+	for i=1:num_of_samples
+		IQ_complex[i]=I_[i] + Q_[i]im
+	end
+	
+	## IQ_complex is the complex data!
+	#######  do your stuff with the data gathered!
+	
+end
+
+close(file_handle)
+
+
+##################################################################################
+
+
+
+
+
+#########################   psd from local data   #################################
+
+
+
+
+
+
+###################################################################################

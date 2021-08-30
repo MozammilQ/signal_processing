@@ -1,0 +1,73 @@
+using Distributed
+
+num_cores=4
+server_specs=("root@192.168.1.2",num_cores)
+machines=Vector{typeof(server_specs)}(undef,1)
+machines[1]=server_specs
+node_working_dir="/home/red/Desktop/Julia_Workspaces/sig_proc"
+server_pids=addprocs(machines,max_parallel=20,dir=node_working_dir)
+
+
+@fetch myid()
+
+using SharedArrays
+s_arr=SharedArray{Float32}(1,init=false,workers())
+
+
+
+@everywhere [2] begin
+    f(x)=2*x
+    ff(x)=3*x
+    end
+
+@fetchfrom 2
+    
+@everywhere [3] x=5
+
+
+
+
+@spawnat 2 for i in 1:10^4 end
+
+
+arr=[Complex(i,j) for i=rand(100),j=rand(100)]
+
+fft([Complex(i,j) for i=rand(100),j=rand(100)])
+
+
+
+
+f(x)=2*x
+x=5
+
+put!(RemoteChannel(2),f(x))
+put!(RemoteChannel(3),f(x))
+
+
+for i in workers()
+    print("Result from: ")
+    print(i)
+    print("  -->> ")
+    println(remotecall_fetch(f,i,i))
+end
+
+fetch(@spawnat 2 f(x))
+
+
+
+
+
+
+## Calculating factorial on all nodes
+
+for i in workers()
+    print("Result from: ")
+    print(i)
+    print("  -->> ")
+    println(remotecall_fetch(factorial,i,i))
+end
+
+
+put!(RemoteChannel(2), ff(x)=3*x)
+
+
